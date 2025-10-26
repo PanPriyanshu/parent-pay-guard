@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Smartphone, Lock, Fingerprint, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { z } from "zod";
+
+const otpSchema = z.string().length(6, "OTP must be 6 digits").regex(/^\d+$/, "OTP must be numeric");
 
 interface DemoFlowProps {
   onBack: () => void;
@@ -13,15 +17,56 @@ export const DemoFlow = ({ onBack }: DemoFlowProps) => {
   const [step, setStep] = useState<"initial" | "upi-pin" | "parent-auth" | "otp" | "success" | "rejected">("initial");
   const [upiPin, setUpiPin] = useState("");
   const [otp, setOtp] = useState("");
+  const [paymentRequestId, setPaymentRequestId] = useState<string | null>(null);
+  const [parentEmail, setParentEmail] = useState("");
   const { toast } = useToast();
 
-  const handleUpiPinSubmit = () => {
+  // Demo parent user ID - in production, this would come from authentication
+  const DEMO_PARENT_ID = "00000000-0000-0000-0000-000000000000";
+
+  const handleUpiPinSubmit = async () => {
     if (upiPin.length === 4) {
-      setStep("parent-auth");
-      toast({
-        title: "UPI PIN Accepted",
-        description: "Requesting parent authorization...",
-      });
+      // Check if we have a logged-in parent
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        // Create payment request for logged-in parent
+        const { data, error } = await supabase
+          .from("payment_requests")
+          .insert({
+            parent_id: session.user.id,
+            kid_name: "Demo Kid",
+            amount: 999,
+            merchant_name: "Gaming App - Premium Battle Pass",
+            upi_pin_entered: true,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Error creating payment request:", error);
+          toast({
+            title: "Error",
+            description: "Failed to create payment request. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        setPaymentRequestId(data.id);
+        setStep("parent-auth");
+        toast({
+          title: "UPI PIN Accepted",
+          description: "Parent notification sent! Check the parent dashboard.",
+        });
+      } else {
+        // Demo mode - no backend integration
+        setStep("parent-auth");
+        toast({
+          title: "UPI PIN Accepted",
+          description: "Requesting parent authorization... (Demo Mode - Login as parent to see real notifications)",
+        });
+      }
     }
   };
 
@@ -33,15 +78,56 @@ export const DemoFlow = ({ onBack }: DemoFlowProps) => {
     });
   };
 
-  const handleOtpSubmit = () => {
-    if (otp.length === 6) {
-      setStep("success");
+  const handleOtpSubmit = async () => {
+    const validation = otpSchema.safeParse(otp);
+    if (!validation.success) {
       toast({
-        title: "Payment Approved!",
-        description: "Transaction completed securely",
-        variant: "default",
+        title: "Invalid OTP",
+        description: validation.error.errors[0].message,
+        variant: "destructive",
       });
+      return;
     }
+
+    if (paymentRequestId) {
+      // Verify OTP against database
+      const { data, error } = await supabase
+        .from("payment_requests")
+        .select("otp_code, status")
+        .eq("id", paymentRequestId)
+        .single();
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to verify OTP",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data.status !== "approved" || data.otp_code !== otp) {
+        toast({
+          title: "Invalid OTP",
+          description: "The OTP you entered is incorrect",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Mark as verified
+      await supabase
+        .from("payment_requests")
+        .update({ otp_verified: true })
+        .eq("id", paymentRequestId);
+    }
+
+    setStep("success");
+    toast({
+      title: "Payment Approved!",
+      description: "Transaction completed securely",
+      variant: "default",
+    });
   };
 
   const handleReject = () => {
@@ -68,6 +154,7 @@ export const DemoFlow = ({ onBack }: DemoFlowProps) => {
     setStep("initial");
     setUpiPin("");
     setOtp("");
+    setPaymentRequestId(null);
   };
 
   return (

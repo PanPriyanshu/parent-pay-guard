@@ -1,11 +1,13 @@
-import { Shield, Lock, Smartphone, Users, CheckCircle2, ArrowRight, Fingerprint } from "lucide-react";
+import { Shield, Lock, Smartphone, Users, CheckCircle2, ArrowRight, Fingerprint, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { DemoFlow } from "@/components/DemoFlow";
 
 const Index = () => {
   const [showDemo, setShowDemo] = useState(false);
+  const navigate = useNavigate();
 
   if (showDemo) {
     return <DemoFlow onBack={() => setShowDemo(false)} />;
@@ -37,8 +39,13 @@ const Index = () => {
                 Try Demo
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </Button>
-              <Button size="lg" variant="outline">
-                Learn More
+              <Button 
+                size="lg" 
+                variant="outline"
+                onClick={() => navigate("/parent/auth")}
+              >
+                <UserCircle className="h-4 w-4 mr-2" />
+                Parent Login
               </Button>
             </div>
           </div>

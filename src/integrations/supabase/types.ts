@@ -14,7 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      payment_requests: {
+        Row: {
+          amount: number
+          created_at: string
+          expires_at: string
+          id: string
+          kid_name: string
+          merchant_name: string
+          otp_code: string | null
+          otp_verified: boolean | null
+          parent_id: string
+          status: string | null
+          upi_pin_entered: boolean | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          expires_at?: string
+          id?: string
+          kid_name: string
+          merchant_name: string
+          otp_code?: string | null
+          otp_verified?: boolean | null
+          parent_id: string
+          status?: string | null
+          upi_pin_entered?: boolean | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          expires_at?: string
+          id?: string
+          kid_name?: string
+          merchant_name?: string
+          otp_code?: string | null
+          otp_verified?: boolean | null
+          parent_id?: string
+          status?: string | null
+          upi_pin_entered?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_requests_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          phone_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          phone_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          phone_number?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
