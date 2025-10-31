@@ -24,7 +24,7 @@ const Index = () => {
               Advanced Payment Protection
             </div>
             <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent">
-              SafePay for Kids
+              Secure Play
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Double authentication layer for UPI payments. Protect your wallet from unauthorized purchases by kids.
