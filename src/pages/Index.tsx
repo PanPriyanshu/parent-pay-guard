@@ -47,6 +47,14 @@ const Index = () => {
                 <UserCircle className="h-4 w-4 mr-2" />
                 Parent Login
               </Button>
+              <Button 
+                size="lg" 
+                variant="ghost"
+                onClick={() => navigate("/admin")}
+              >
+                <Shield className="h-4 w-4 mr-2" />
+                Admin
+              </Button>
             </div>
           </div>
 
