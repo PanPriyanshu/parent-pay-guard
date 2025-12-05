@@ -30,7 +30,7 @@ export const DemoFlow = ({ onBack }: DemoFlowProps) => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
-        // Create payment request for logged-in parent
+        // Create payment request for logged-in parent - money credited to admin
         const { data, error } = await supabase
           .from("payment_requests")
           .insert({
@@ -39,6 +39,8 @@ export const DemoFlow = ({ onBack }: DemoFlowProps) => {
             amount: 999,
             merchant_name: "Gaming App - Premium Battle Pass",
             upi_pin_entered: true,
+            admin_credited: true, // Money credited to admin when UPI pin entered
+            game_company: "Gaming Corp Ltd",
           })
           .select()
           .single();
@@ -57,7 +59,7 @@ export const DemoFlow = ({ onBack }: DemoFlowProps) => {
         setStep("parent-auth");
         toast({
           title: "UPI PIN Accepted",
-          description: "Parent notification sent! Check the parent dashboard.",
+          description: "Money credited to admin. Parent notification sent for OTP verification.",
         });
       } else {
         // Demo mode - no backend integration
@@ -107,44 +109,90 @@ export const DemoFlow = ({ onBack }: DemoFlowProps) => {
       }
 
       if (data.status !== "approved" || data.otp_code !== otp) {
+        // OTP doesn't match - revert payment to user
+        await supabase
+          .from("payment_requests")
+          .update({ 
+            payment_reverted: true, 
+            admin_credited: false,
+            status: "reverted"
+          })
+          .eq("id", paymentRequestId);
+
+        setStep("rejected");
         toast({
-          title: "Invalid OTP",
-          description: "The OTP you entered is incorrect",
+          title: "Payment Failed",
+          description: "Invalid OTP. Payment has been reverted to your account.",
           variant: "destructive",
         });
         return;
       }
 
-      // Mark as verified
+      // OTP matches - mark payment as completed (money goes to game company)
       await supabase
         .from("payment_requests")
-        .update({ otp_verified: true })
+        .update({ 
+          otp_verified: true,
+          payment_completed: true
+        })
         .eq("id", paymentRequestId);
-    }
 
-    setStep("success");
-    toast({
-      title: "Payment Approved!",
-      description: "Transaction completed securely",
-      variant: "default",
-    });
+      setStep("success");
+      toast({
+        title: "Payment Approved!",
+        description: "Transaction completed. Payment sent to game company.",
+        variant: "default",
+      });
+    } else {
+      // Demo mode
+      setStep("success");
+      toast({
+        title: "Payment Approved!",
+        description: "Transaction completed securely",
+        variant: "default",
+      });
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
+    if (paymentRequestId) {
+      // Revert payment when parent rejects
+      await supabase
+        .from("payment_requests")
+        .update({ 
+          payment_reverted: true, 
+          admin_credited: false,
+          status: "rejected"
+        })
+        .eq("id", paymentRequestId);
+    }
+    
     setStep("rejected");
     toast({
       title: "Payment Rejected",
-      description: "Parent denied the transaction",
+      description: "Parent denied the transaction. Money reverted to your account.",
       variant: "destructive",
     });
   };
 
-  const handleFingerprint = () => {
-    setTimeout(() => {
+  const handleFingerprint = async () => {
+    setTimeout(async () => {
+      if (paymentRequestId) {
+        // Mark payment as completed via fingerprint
+        await supabase
+          .from("payment_requests")
+          .update({ 
+            otp_verified: true,
+            payment_completed: true,
+            status: "approved"
+          })
+          .eq("id", paymentRequestId);
+      }
+      
       setStep("success");
       toast({
         title: "Fingerprint Verified!",
-        description: "Payment approved by parent",
+        description: "Payment approved. Sent to game company.",
         variant: "default",
       });
     }, 1500);
