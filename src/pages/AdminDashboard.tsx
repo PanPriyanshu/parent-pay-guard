@@ -14,7 +14,10 @@ import {
   Clock,
   TrendingUp,
   Users,
-  Loader2
+  Loader2,
+  RotateCcw,
+  Play,
+  Undo2
 } from "lucide-react";
 import {
   Table,
@@ -24,6 +27,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface PaymentRequest {
   id: string;
@@ -44,6 +58,7 @@ interface PaymentRequest {
 const AdminDashboard = () => {
   const [payments, setPayments] = useState<PaymentRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [processingId, setProcessingId] = useState<string | null>(null);
   const [stats, setStats] = useState({
     totalCredited: 0,
     totalCompleted: 0,
@@ -57,7 +72,6 @@ const AdminDashboard = () => {
     checkAdminAccess();
     fetchPayments();
     
-    // Set up realtime subscription
     const channel = supabase
       .channel("admin-payments")
       .on(
@@ -116,7 +130,6 @@ const AdminDashboard = () => {
       const typedData = (data || []) as PaymentRequest[];
       setPayments(typedData);
 
-      // Calculate stats
       const credited = typedData.filter(p => p.admin_credited).reduce((sum, p) => sum + Number(p.amount), 0);
       const completed = typedData.filter(p => p.payment_completed).reduce((sum, p) => sum + Number(p.amount), 0);
       const reverted = typedData.filter(p => p.payment_reverted).reduce((sum, p) => sum + Number(p.amount), 0);
@@ -135,6 +148,89 @@ const AdminDashboard = () => {
         variant: "destructive",
       });
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleProcessPayment = async (paymentId: string) => {
+    setProcessingId(paymentId);
+    try {
+      const { error } = await supabase
+        .from("payment_requests")
+        .update({ 
+          payment_completed: true, 
+          otp_verified: true,
+          status: 'completed' 
+        })
+        .eq("id", paymentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Payment Processed",
+        description: "Payment has been marked as completed",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRevertPayment = async (paymentId: string) => {
+    setProcessingId(paymentId);
+    try {
+      const { error } = await supabase
+        .from("payment_requests")
+        .update({ 
+          payment_reverted: true, 
+          admin_credited: false,
+          status: 'reverted' 
+        })
+        .eq("id", paymentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Payment Reverted",
+        description: "Payment has been reverted to user",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleResetData = async () => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from("payment_requests")
+        .delete()
+        .neq("id", "00000000-0000-0000-0000-000000000000"); // Delete all rows
+
+      if (error) throw error;
+
+      toast({
+        title: "Data Reset",
+        description: "All payment data has been cleared",
+      });
+      fetchPayments();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
       setIsLoading(false);
     }
   };
@@ -164,6 +260,10 @@ const AdminDashboard = () => {
     return new Date(dateString).toLocaleString();
   };
 
+  const isPending = (payment: PaymentRequest) => {
+    return payment.admin_credited && !payment.payment_completed && !payment.payment_reverted;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
       {/* Header */}
@@ -178,10 +278,34 @@ const AdminDashboard = () => {
               <p className="text-sm text-muted-foreground">Secure Play Payment Management</p>
             </div>
           </div>
-          <Button variant="outline" onClick={handleLogout}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="text-destructive border-destructive/50 hover:bg-destructive/10">
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Reset Data
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reset All Data?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete all payment records. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleResetData} className="bg-destructive hover:bg-destructive/90">
+                    Reset All
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <Button variant="outline" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -269,6 +393,7 @@ const AdminDashboard = () => {
                       <TableHead>UPI Pin</TableHead>
                       <TableHead>OTP Verified</TableHead>
                       <TableHead>Date</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -294,6 +419,42 @@ const AdminDashboard = () => {
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {formatDate(payment.created_at)}
+                        </TableCell>
+                        <TableCell>
+                          {isPending(payment) && (
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="success"
+                                onClick={() => handleProcessPayment(payment.id)}
+                                disabled={processingId === payment.id}
+                              >
+                                {processingId === payment.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Play className="w-4 h-4 mr-1" />
+                                    Process
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleRevertPayment(payment.id)}
+                                disabled={processingId === payment.id}
+                              >
+                                {processingId === payment.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Undo2 className="w-4 h-4 mr-1" />
+                                    Revert
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
