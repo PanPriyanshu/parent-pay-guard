@@ -160,7 +160,7 @@ const AdminDashboard = () => {
         .update({ 
           payment_completed: true, 
           otp_verified: true,
-          status: 'completed' 
+          status: 'approved' 
         })
         .eq("id", paymentId);
 
@@ -189,7 +189,7 @@ const AdminDashboard = () => {
         .update({ 
           payment_reverted: true, 
           admin_credited: false,
-          status: 'reverted' 
+          status: 'rejected' 
         })
         .eq("id", paymentId);
 
