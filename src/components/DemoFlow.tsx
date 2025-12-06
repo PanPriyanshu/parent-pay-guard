@@ -108,14 +108,25 @@ export const DemoFlow = ({ onBack }: DemoFlowProps) => {
         return;
       }
 
-      if (data.status !== "approved" || data.otp_code !== otp) {
+      // Check if parent has approved and provided OTP
+      if (data.status !== "approved") {
+        toast({
+          title: "Waiting for Parent Approval",
+          description: "Parent must approve this request from their dashboard first.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Verify OTP matches the one parent set
+      if (!data.otp_code || data.otp_code !== otp) {
         // OTP doesn't match - revert payment to user
         await supabase
           .from("payment_requests")
           .update({ 
             payment_reverted: true, 
             admin_credited: false,
-            status: "reverted"
+            status: "rejected"
           })
           .eq("id", paymentRequestId);
 
